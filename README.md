@@ -1,35 +1,30 @@
-==========================
-Marlin 3D Printer Firmware
-==========================
+============================
+Atlantic 3D Printer Firmware
+============================
 
-[![Flattr this git repo](http://api.flattr.com/button/flattr-badge-large.png)](https://flattr.com/submit/auto?user_id=ErikZalm&url=https://github.com/ErikZalm/Marlin&title=Marlin&language=&tags=github&category=software)
+[![Flattr this git repo](http://api.flattr.com/button/flattr-badge-large.png)](https://flattr.com/submit/auto?user_id=TerawattIndustries&url=https://github.com/Terawatt-Industries/Atlantic.git&title=Atlantic&language=&tags=github&category=software)
 
 Quick Information
 ===================
-This RepRap firmware is a mashup between <a href="https://github.com/kliment/Sprinter">Sprinter</a>, <a href="https://github.com/simen/grbl/tree">grbl</a> and many original parts.
+This is the official firmware for Terawatt Industries 3D Printers.  It is based on Marlin v1.0.0.  By default it's configured for the PrismX 3D Printer, but it can be used with our MendelMax 1.5 for LM8UU or any other RAMPS1.4-based 3D printer.
 
-Derived from Sprinter and Grbl by Erik van der Zalm.
-Sprinters lead developers are Kliment and caru.
-Grbls lead developer is Simen Svale Skogsrud. Sonney Jeon (Chamnit) improved some parts of grbl
-A fork by bkubicek for the Ultimaker was merged, and further development was aided by him.
-Some features have been added by:
-Lampmaker, Bradley Feldman, and others...
+This firmware is based on Marlin, which is in turn based on grbl and many original parts.  This fork is a "sanitized" version of Marlin which focuses on the equipment used on Terawatt Industries printers.  We also deleted all LCD hacks from the code.
 
+ (https://github.com/ErikZalm/Marlin/tree/Marlin_v1/Marlin)
+ (https://github.com/simen/grbl/tree)
 
 Features:
-
 *   Interrupt based movement with real linear acceleration
 *   High steprate
 *   Look ahead (Keep the speed high when possible. High cornering speed)
-*   Interrupt based temperature protection
+*   Advanced temperature protection
 *   preliminary support for Matthew Roberts advance algorithm
     For more info see: http://reprap.org/pipermail/reprap-dev/2011-May/003323.html
 *   Full endstop support
 *   SD Card support
 *   SD Card folders (works in pronterface)
 *   SD Card autostart support
-*   LCD support (ideally 20x4)
-*   LCD menu system for autonomous SD card printing, controlled by an click-encoder.
+*   Support for 2nd serial port (multiplexing)
 *   EEPROM storage of e.g. max-velocity, max-acceleration, and similar variables
 *   many small but handy things originating from bkubicek's fork.
 *   Arc support
@@ -41,15 +36,21 @@ Features:
 *   Heater power reporting. Useful for PID monitoring.
 *   PID tuning
 *   CoreXY kinematics (www.corexy.com/theory.html)
+*   Delta robot kinematics
 *   Configurable serial port to support connection of wireless adaptors.
 *   Automatic operation of extruder/cold-end cooling fans based on nozzle temperature
 *   RC Servo Support, specify angle or duration for continuous rotation servos.
+*   Specification for attaching external control interfaces such as touch-screen and LCD panels
 
-The default baudrate is 250000. This baudrate has less jitter and hence errors than the usual 115200 baud, but is less supported by drivers and host-environments.
+This firmware is optimized for Ramps1.4 electronics.
 
+The default baudrate is 115200.  This accommodates older versions of Python which is commonly used on PCs that connect to this firmware.  This is not an optimal baud rate (in terms of jitter) but has negligible impact on overall performance, since there is an ACK sequence that must be performed and this is the primary bottleneck on PC-to-printer communication.
 
-Differences and additions to the already good Sprinter firmware:
+Differences and additions to previous firmwares:
 ================================================================
+
+*Hotend Overheat Protection:*
+This firmware implements a much improved algorithm for detecting the unlikely but catastrophic event of a thermistor becoming dislodged during prints.  It does this with an averaged second-order differential of analog temperature readings.  Multiple extruders are supported.  Unlike previous methods, this algorithm is not inherently prone to missed edge cases that could result in no protection.  Unlike previous methods, this algorithm is not dependent on the mass of the hot end.
 
 *Look-ahead:*
 
@@ -89,6 +90,7 @@ If you know your PID values, the acceleration and max-velocities of your unique 
 After each reboot, it will magically load them from EEPROM, independent what your Configuration.h says.
 
 *LCD Menu:*
+FIXME:  rewrite -- we now have a specification on how vendors should attach custom gadgets such as LCD panels.  This firmware is _not_ backwards compatible.  If another vendor is willing to maintain a backwards-compatible fork that works for us.
 
 If your hardware supports it, you can build yourself a LCD-CardReader+Click+encoder combination. It will enable you to realtime tune temperatures,
 accelerations, velocities, flow rates, select and print files from the SD card, preheat, disable the steppers, and do other fancy stuff.
@@ -245,6 +247,7 @@ If all goes well the firmware is uploading
 
 That's ok.  Enjoy Silky Smooth Printing.
 
+========================================================================================
 
-
-
+Touch Screen and LCD Support:
+This firmware specifies a different way to attach LCD panels to our products that use RAMPS 1.4.  In short all secondary control devices will use USART2 whether or not they have a GUI (i.e. touch screen, LCD panel, or bluetooth).  No vendors should even consider submitting a pull request that resembles the LCD hacks in the original Marlin codebase.  They should fork and set us as an upstream repo instead.
