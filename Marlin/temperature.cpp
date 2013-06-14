@@ -25,7 +25,9 @@
  
  It has preliminary support for Matthew Roberts advance algorithm 
     http://reprap.org/pipermail/reprap-dev/2011-May/003323.html
-
+ */
+/*
+  temperature meltdown protection algorithm by Free Beachler, Terawatt Industries
  */
 
 
@@ -142,17 +144,19 @@ static float analog2temp(int raw, uint8_t e);
 static float analog2tempBed(int raw);
 static void updateTemperaturesFromRawValues();
 
-# define WATCH_ORD1_ARRAY(v1) { v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1 }
-# define WATCH_ORD2_ARRAY(v1) { v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1 }
-# define WATCH_ORD3_ARRAY(v1) { v1, v1, v1, v1, v1, v1, v1 }
+# define WATCH_ORD1_ARRAY(v1) { v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1 }
+# define WATCH_ORD2_ARRAY(v1) { v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1 }
+# define WATCH_ORD3_ARRAY(v1) { v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1 }
 
 #ifdef WATCH_TEMP_PERIOD
 unsigned long watchmillis[EXTRUDERS] = ARRAY_BY_EXTRUDERS(0,0,0);
-int watch_order_1[28][EXTRUDERS] = WATCH_ORD1_ARRAY(ARRAY_BY_EXTRUDERS(0, 0, 0));
-int watch_order_2[14][EXTRUDERS] = WATCH_ORD2_ARRAY(ARRAY_BY_EXTRUDERS(0, 0, 0));
-int watch_order_3[7][EXTRUDERS] = WATCH_ORD3_ARRAY(ARRAY_BY_EXTRUDERS(0, 0, 0));
-short watch_order_buff_cnt[3][EXTRUDERS] = { ARRAY_BY_EXTRUDERS(0, 0, 0), ARRAY_BY_EXTRUDERS(0, 0, 0), ARRAY_BY_EXTRUDERS(0, 0, 0) };
-short watch_order_buff_head[3][EXTRUDERS] = { ARRAY_BY_EXTRUDERS(0, 0, 0), ARRAY_BY_EXTRUDERS(0, 0, 0), ARRAY_BY_EXTRUDERS(0, 0, 0) };
+int watch_order_1[32][EXTRUDERS] = WATCH_ORD1_ARRAY(ARRAY_BY_EXTRUDERS(0, 0, 0));
+int watch_order_2[32][EXTRUDERS] = WATCH_ORD2_ARRAY(ARRAY_BY_EXTRUDERS(0, 0, 0));
+int watch_order_3[16][EXTRUDERS] = WATCH_ORD3_ARRAY(ARRAY_BY_EXTRUDERS(0, 0, 0));
+int watch_order_buff_cnt[3][EXTRUDERS] = { ARRAY_BY_EXTRUDERS(0, 0, 0), ARRAY_BY_EXTRUDERS(0, 0, 0), ARRAY_BY_EXTRUDERS(0, 0, 0) };
+int watch_order_buff_head[3][EXTRUDERS] = { ARRAY_BY_EXTRUDERS(0, 0, 0), ARRAY_BY_EXTRUDERS(0, 0, 0), ARRAY_BY_EXTRUDERS(0, 0, 0) };
+long watch_avg[EXTRUDERS] = ARRAY_BY_EXTRUDERS(0, 0, 0);
+int watch_avg_index = 0;
 #endif //WATCH_TEMP_PERIOD
 
 #ifndef SOFT_PWM_SCALE
@@ -494,87 +498,95 @@ void manage_heater()
         watch_order_buff_cnt[2][e] = 0;
         watch_order_buff_head[2][e] = 0;
       }
+      watch_avg[e] = 0;
+      watch_avg_index = 0;
     }
-    if(degHotend(e) < degTargetHotend(e) && millis() - watchmillis[e] > WATCH_TEMP_PERIOD)
+    if(pid_output > 0 && degHotend(e) < degTargetHotend(e) && millis() - watchmillis[e] > WATCH_TEMP_PERIOD)
     {
         watchmillis[e] = millis();
         int dh = current_temperature_raw[e];
-        // store sample in first order array
-        int end_o1 = (watch_order_buff_head[0][e] + watch_order_buff_cnt[0][e]) % 28;
-        watch_order_1[e][end_o1] = dh;
-        if (watch_order_buff_cnt[0][e] == 28) {
-          watch_order_buff_head[0][e] = (watch_order_buff_head[0][e] + 1) % 28; /* full, overwrite */
-        } else {
-          ++watch_order_buff_cnt[0][e];
-        }
+        watch_avg[e] += (long) dh;
+        watch_avg_index++;
+        int end_o1 = 0, end_o2 = 0, end_o3 = 0;
+        if (4 == watch_avg_index) {
+          // store sample (avg) in first order array
+          end_o1 = (watch_order_buff_head[0][e] + watch_order_buff_cnt[0][e]) % 32;
+          watch_order_1[e][end_o1] = (int) (watch_avg[e] >> 2);  // div by 4
+          if (watch_order_buff_cnt[0][e] == 32) {
+            watch_order_buff_head[0][e] = (watch_order_buff_head[0][e] + 1) % 64; /* full, overwrite */
+          } else {
+            ++watch_order_buff_cnt[0][e];
+          }
+          watch_avg[e] = 0;
+          watch_avg_index = 0;
 #ifdef WATCH_TEMP_PERIOD_DEBUG
 SERIAL_ECHO("1st order array: ");
-for (int i = 0; i < 28; i++) {
+for (int i = 0; i < 32; i++) {
   SERIAL_ECHO(watch_order_1[e][i]);
   SERIAL_ECHO(", ");
 }
 SERIAL_ECHOLN("*");
 #endif
-        if (watch_order_buff_cnt[0][e] > 0 && 0 == watch_order_buff_cnt[0][e] % 2) {
+        if (watch_order_buff_cnt[0][e] > 1) {
           // diff latest sample with previous sample, store in 2nd order
           int a1;
-          if (end_o1 - 1 < 0) {
-            a1 = dh - watch_order_1[e][27]; 
+          if (end_o1 == 0) {
+            a1 = watch_order_1[e][0] - watch_order_1[e][63]; 
           } else {
-            a1 = dh - watch_order_1[e][end_o1 - 1]; 
+            a1 = watch_order_1[e][end_o1] - watch_order_1[e][end_o1 - 1]; 
           }
-          int end_o2 = (watch_order_buff_head[1][e] + watch_order_buff_cnt[1][e]) % 14;
+          end_o2 = (watch_order_buff_head[1][e] + watch_order_buff_cnt[1][e]) % 32;
           watch_order_2[e][end_o2] = a1;
-          if (watch_order_buff_cnt[1][e] == 14) {
-            watch_order_buff_head[1][e] = (watch_order_buff_head[1][e] + 1) % 14; /* full, overwrite */
+          if (watch_order_buff_cnt[1][e] == 32) {
+            watch_order_buff_head[1][e] = (watch_order_buff_head[1][e] + 1) % 32; /* full, overwrite */
           } else {
             ++watch_order_buff_cnt[1][e];
           }
 #ifdef WATCH_TEMP_PERIOD_DEBUG
 SERIAL_ECHO("2nd order array: ");
-for (int i = 0; i < 14; i++) {
+for (int i = 0; i < 32; i++) {
   SERIAL_ECHO(watch_order_2[e][i]);
   SERIAL_ECHO(", ");
 }
 SERIAL_ECHOLN("**");
 #endif
-          if (watch_order_buff_cnt[1][e] > 0 && 0 == watch_order_buff_cnt[1][e] % 2) {
+          if (watch_order_buff_cnt[1][e] > 1) {
             // diff latest 2nd order with previous calc, store in 3rd order
             int a2;
-            if (end_o2 - 1 < 0) {
-              a2 = abs(watch_order_2[e][end_o2]) - watch_order_2[e][13]; 
+            if (end_o2 == 0) {
+              a2 = watch_order_2[e][0] - watch_order_2[e][31]; 
             } else {
-              a2 = abs(watch_order_2[e][end_o2]) - watch_order_2[e][end_o2 - 1]; 
+              a2 = watch_order_2[e][end_o2] - watch_order_2[e][end_o2 - 1]; 
             }
-            int end_o3 = (watch_order_buff_head[2][e] + watch_order_buff_cnt[2][e]) % 7;
+            end_o3 = (watch_order_buff_head[2][e] + watch_order_buff_cnt[2][e]) % 16;
             watch_order_3[e][end_o3] = a2;
-            if (watch_order_buff_cnt[2][e] == 7) {
-              watch_order_buff_head[2][e] = (watch_order_buff_head[2][e] + 1) % 7; /* full, overwrite */
-              // avg samples
-              long sum = 0;
-              for (int i = 0; i < 7; i++) {
-                sum += watch_order_3[e][i];
-              }
-              if (sum / 7 <= 0) {
-                disable_heater();
-                SERIAL_ECHOLN("!THERMISTOR DETACHED EVENT!");
-              }
-            } else {
-              ++watch_order_buff_cnt[2][e];
-            }
-          }
+            if (watch_order_buff_cnt[2][e] == 16) {
 #ifdef WATCH_TEMP_PERIOD_DEBUG
-if (watch_order_buff_cnt[2][e] == 7) {
   SERIAL_ECHO("3rd order array: ");
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < 16; i++) {
     SERIAL_ECHO(watch_order_3[e][i]);
     SERIAL_ECHO(", ");
   }
   SERIAL_ECHOLN("***");
-}
 #endif
+              watch_order_buff_head[2][e] = (watch_order_buff_head[2][e] + 1) % 16; /* full, overwrite */
+              // avg samples
+              long sum = 0;
+              for (int i = 0; i < 16; i++) {
+                sum += watch_order_3[e][i];
+              }
+              if (sum >> 4 >= 0) {  // divide by 16 for avg
+                disable_heater();
+                SERIAL_ECHOLN("!THERMISTOR DETACHED EVENT!");
+              }
+//              watch_order_buff_cnt[2][e] = 0;
+//              watch_order_buff_head[2][e] = 0;
+            } else {
+              ++watch_order_buff_cnt[2][e];
+            }
+          }
         }
-        // check 3rd order array once it's full
+      }
 /*
         if(degHotend(e) < watch_start_temp[e] + WATCH_TEMP_INCREASE)
         {
