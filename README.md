@@ -6,7 +6,7 @@ Atlantic 3D Printer Firmware
 
 Quick Information
 ===================
-This is the official firmware for Terawatt Industries 3D Printers.  By default it's configured for the PrismX 3D Printer, but it can be used with our MendelMax 1.5 for LM8UU or any other RAMPS1.4-based 3D printer.
+This is the official firmware for Terawatt Industries 3D Printers.  It is based on Marlin v1.0.0.  By default it's configured for the PrismX 3D Printer, but it can be used with our MendelMax 1.5 for LM8UU or any other RAMPS1.4-based 3D printer.
 
 This firmware is based on Marlin, which is in turn based on grbl and many original parts.  This fork is a "sanitized" version of Marlin which focuses on the equipment used on Terawatt Industries printers.  We also deleted all LCD hacks from the code.
 
@@ -17,15 +17,14 @@ Features:
 *   Interrupt based movement with real linear acceleration
 *   High steprate
 *   Look ahead (Keep the speed high when possible. High cornering speed)
-*   Interrupt based temperature protection
+*   Advanced temperature protection
 *   preliminary support for Matthew Roberts advance algorithm
     For more info see: http://reprap.org/pipermail/reprap-dev/2011-May/003323.html
 *   Full endstop support
 *   SD Card support
 *   SD Card folders (works in pronterface)
 *   SD Card autostart support
-*   LCD support (ideally 20x4)
-*   LCD menu system for autonomous SD card printing, controlled by an click-encoder.
+*   Support for 2nd serial port (multiplexing)
 *   EEPROM storage of e.g. max-velocity, max-acceleration, and similar variables
 *   many small but handy things originating from bkubicek's fork.
 *   Arc support
