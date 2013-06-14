@@ -29,7 +29,6 @@
 
 #include "Marlin.h"
 
-#include "ultralcd.h"
 #include "planner.h"
 #include "stepper.h"
 #include "temperature.h"
@@ -48,7 +47,7 @@
 #include <SPI.h>
 #endif
 
-#define VERSION_STRING  "1.0.0"
+#define VERSION_STRING  "1.5"
 
 // look here for descriptions of gcodes: http://linuxcnc.org/handbook/gcode/g-code.html
 // http://objects.reprap.org/wiki/Mendel_User_Manual:_RepRapGCodes
@@ -185,12 +184,20 @@ int fanSpeed=0;
 int ValvePressure=0;
 int EtoPPressure=0;
 #endif
-
 #ifdef FWRETRACT
   bool autoretract_enabled=true;
   bool retracted=false;
   float retract_length=3, retract_feedrate=17*60, retract_zlift=0.8;
   float retract_recover_length=0, retract_recover_feedrate=8*60;
+#endif
+
+/* 
+ * @param cmdPort
+ * port command is being recv'd on, used to block main serial port
+ * -1 = not blocked
+ */
+#ifdef U2Serial
+int cmdPort = -1;
 #endif
 
 //===========================================================================
@@ -375,6 +382,9 @@ void setup()
   setup_killpin();
   setup_powerhold();
   MYSERIAL.begin(BAUDRATE);
+  #ifdef USART2MPLEX
+  U2Serial.begin(BAUDRATE);
+  #endif
   SERIAL_PROTOCOLLNPGM("start");
   SERIAL_ECHO_START;
 
@@ -420,8 +430,6 @@ void setup()
   setup_photpin();
   servo_init();
 
-  lcd_init();
-  
   #if defined(CONTROLLERFAN_PIN) && CONTROLLERFAN_PIN > -1
     SET_OUTPUT(CONTROLLERFAN_PIN); //Set pin used for driver cooling fan
   #endif 
@@ -472,18 +480,40 @@ void loop()
   manage_heater();
   manage_inactivity();
   checkHitEndstops();
-  lcd_update();
 }
 
 void get_command()
 {
+  #ifdef USART2MPLEX
+  while( (MYSERIAL.available() || U2Serial.available()) > 0  && buflen < BUFSIZE) {
+    if (-1 == cmdPort) {
+      if (MYSERIAL.available()) {
+        cmdPort = 0;
+      } else if (U2Serial.available()) {
+        cmdPort = 2;
+      }
+    }
+    if (0 == cmdPort) {
+      serial_char = MYSERIAL.read();
+    }
+    if (2 == cmdPort) {
+      serial_char = U2Serial.read();
+    }
+    if(serial_char == '\n' || 
+       serial_char == '\r' || 
+       (serial_char == ':' && comment_mode == false) || 
+       serial_count >= (MAX_CMD_SIZE - 1) ) 
+    {
+      cmdPort = -1;
+  #else
   while( MYSERIAL.available() > 0  && buflen < BUFSIZE) {
     serial_char = MYSERIAL.read();
-    if(serial_char == '\n' ||
-       serial_char == '\r' ||
-       (serial_char == ':' && comment_mode == false) ||
-       serial_count >= (MAX_CMD_SIZE - 1) )
+    if(serial_char == '\n' || 
+       serial_char == '\r' || 
+       (serial_char == ':' && comment_mode == false) || 
+       serial_count >= (MAX_CMD_SIZE - 1) ) 
     {
+  #endif
       if(!serial_count) { //if empty line
         comment_mode = false; //for new command
         return;
@@ -563,7 +593,6 @@ void get_command()
             }
             else {
               SERIAL_ERRORLNPGM(MSG_ERR_STOPPED);
-              LCD_MESSAGEPGM(MSG_STOPPED);
             }
             break;
           default:
@@ -753,7 +782,6 @@ void process_commands()
         return;
       }
     case 4: // G4 dwell
-      LCD_MESSAGEPGM(MSG_DWELL);
       codenum = 0;
       if(code_seen('P')) codenum = code_value(); // milliseconds to wait
       if(code_seen('S')) codenum = code_value() * 1000; // seconds to wait
@@ -764,7 +792,6 @@ void process_commands()
       while(millis()  < codenum ){
         manage_heater();
         manage_inactivity();
-        lcd_update();
       }
       break;
       #ifdef FWRETRACT
@@ -983,7 +1010,6 @@ void process_commands()
     break;
 #endif
     case 17:
-        LCD_MESSAGEPGM(MSG_NO_MOVE);
         enable_x();
         enable_y();
         enable_z();
@@ -1076,7 +1102,6 @@ void process_commands()
       sprintf_P(time, PSTR("%i min, %i sec"), min, sec);
       SERIAL_ECHO_START;
       SERIAL_ECHOLN(time);
-      lcd_setstatus(time);
       autotempShutdown();
       }
       break;
@@ -1108,11 +1133,13 @@ void process_commands()
       }
      break;
     case 104: // M104
-      if(setTargetedHotend(104)){
+      if(setTargetedHotend(104)) {
         break;
       }
-      if (code_seen('S')) setTargetHotend(code_value(), tmp_extruder);
-      setWatch();
+      if (code_seen('S')) {
+        setTargetHotend(code_value(), tmp_extruder);
+        // setWatch();
+      }
       break;
     case 140: // M140 set bed temp
       if (code_seen('S')) setTargetBed(code_value());
@@ -1151,7 +1178,6 @@ void process_commands()
       if(setTargetedHotend(109)){
         break;
       }
-      LCD_MESSAGEPGM(MSG_HEATING);
       #ifdef AUTOTEMP
         autotemp_enabled=false;
       #endif
@@ -1166,7 +1192,7 @@ void process_commands()
         }
       #endif
 
-      setWatch();
+      // setWatch();
       codenum = millis();
 
       /* See if we are heating up or cooling down */
@@ -1206,7 +1232,6 @@ void process_commands()
           }
           manage_heater();
           manage_inactivity();
-          lcd_update();
         #ifdef TEMP_RESIDENCY_TIME
             /* start/restart the TEMP_RESIDENCY_TIME timer whenever we reach target temp for the first time
               or when current temp falls outside the hysteresis after target temp was reached */
@@ -1218,14 +1243,12 @@ void process_commands()
           }
         #endif //TEMP_RESIDENCY_TIME
         }
-        LCD_MESSAGEPGM(MSG_HEATING_COMPLETE);
         starttime=millis();
         previous_millis_cmd = millis();
       }
       break;
     case 190: // M190 - Wait for bed heater to reach target.
     #if defined(TEMP_BED_PIN) && TEMP_BED_PIN > -1
-        LCD_MESSAGEPGM(MSG_BED_HEATING);
         if (code_seen('S')) setTargetBed(code_value());
         codenum = millis();
         while(isHeatingBed())
@@ -1244,9 +1267,7 @@ void process_commands()
           }
           manage_heater();
           manage_inactivity();
-          lcd_update();
         }
-        LCD_MESSAGEPGM(MSG_BED_DONE);
         previous_millis_cmd = millis();
     #endif
         break;
@@ -1384,7 +1405,6 @@ void process_commands()
       starpos = (strchr(strchr_pointer + 5,'*'));
       if(starpos!=NULL)
         *(starpos-1)='\0';
-      lcd_setstatus(strchr_pointer + 5);
       break;
     case 114: // M114
       SERIAL_PROTOCOLPGM("X:");
@@ -1923,7 +1943,6 @@ void process_commands()
     break;
     case 999: // M999: Restart after being stopped
       Stopped = false;
-      lcd_reset_alert_level();
       gcode_LastN = Stopped_gcode_LastN;
       FlushSerialRequestResend();
     break;
@@ -2291,7 +2310,6 @@ void kill()
 #endif  
   SERIAL_ERROR_START;
   SERIAL_ERRORLNPGM(MSG_ERR_KILLED);
-  LCD_ALERTMESSAGEPGM(MSG_KILLED);
   suicide();
   while(1) { /* Intentionally left empty */ } // Wait for reset
 }
@@ -2304,7 +2322,6 @@ void Stop()
     Stopped_gcode_LastN = gcode_LastN; // Save last g_code for restart
     SERIAL_ERROR_START;
     SERIAL_ERRORLNPGM(MSG_ERR_STOPPED);
-    LCD_MESSAGEPGM(MSG_STOPPED);
   }
 }
 

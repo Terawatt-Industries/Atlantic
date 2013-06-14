@@ -35,6 +35,7 @@
 #endif
 
 #include "MarlinSerial.h"
+#include "MarlinUSART2.h"
 
 #ifndef cbi
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
@@ -48,25 +49,61 @@
 #ifdef AT90USB
   #define MYSERIAL Serial
 #else
+  #ifdef USART2MPLEX
+  #define U2Serial U2Serial
+  #endif
   #define MYSERIAL MSerial
 #endif
 
-#define SERIAL_PROTOCOL(x) MYSERIAL.print(x);
-#define SERIAL_PROTOCOL_F(x,y) MYSERIAL.print(x,y);
-#define SERIAL_PROTOCOLPGM(x) serialprintPGM(PSTR(x));
-#define SERIAL_PROTOCOLLN(x) {MYSERIAL.print(x);MYSERIAL.write('\n');}
-#define SERIAL_PROTOCOLLNPGM(x) {serialprintPGM(PSTR(x));MYSERIAL.write('\n');}
+#define MYPGM(s) PSTR(s)
 
+#ifdef USART2MPLEX
+#define SERIAL_PROTOCOL(x) { MYSERIAL.print(x); U2Serial.print(x); };
+#else
+#define SERIAL_PROTOCOL(x) MYSERIAL.print(x);
+#endif
+
+#ifdef USART2MPLEX
+#define SERIAL_PROTOCOL_F(x, y) { MYSERIAL.print(x, y); U2Serial.print(x, y); };
+#else
+#define SERIAL_PROTOCOL_F(x, y) MYSERIAL.print(x, y);
+#endif
+
+#ifdef USART2MPLEX
+#define SERIAL_PROTOCOLPGM(x) { serialprintPGM(MYPGM(x)); serialprintPGM2(MYPGM(x)); };
+#else
+#define SERIAL_PROTOCOLPGM(x) serialprintPGM(MYPGM(x));
+#endif
+
+#ifdef USART2MPLEX
+#define SERIAL_PROTOCOLLN(x) { MYSERIAL.print(x); MYSERIAL.write('\n'); U2Serial.print(x); U2Serial.write('\n'); };
+#else
+#define SERIAL_PROTOCOLLN(x) { MYSERIAL.print(x); MYSERIAL.write('\n'); }
+#endif
+
+#ifdef USART2MPLEX
+#define SERIAL_PROTOCOLLNPGM(x) { serialprintPGM(MYPGM(x)); serialprintPGM2(MYPGM(x)); MYSERIAL.write('\n'); U2Serial.write('\n'); }
+#else
+#define SERIAL_PROTOCOLLNPGM(x) { serialprintPGM(MYPGM(x)); MYSERIAL.write('\n'); }
+#endif
 
 const char errormagic[] PROGMEM ="Error:";
 const char echomagic[] PROGMEM ="echo:";
+#ifdef USART2MPLEX
+#define SERIAL_ERROR_START { serialprintPGM(errormagic); serialprintPGM2(errormagic); }
+#else
 #define SERIAL_ERROR_START serialprintPGM(errormagic);
+#endif
 #define SERIAL_ERROR(x) SERIAL_PROTOCOL(x)
 #define SERIAL_ERRORPGM(x) SERIAL_PROTOCOLPGM(x)
 #define SERIAL_ERRORLN(x) SERIAL_PROTOCOLLN(x)
 #define SERIAL_ERRORLNPGM(x) SERIAL_PROTOCOLLNPGM(x)
 
+#ifdef USART2MPLEX
+#define SERIAL_ECHO_START { serialprintPGM(echomagic); serialprintPGM2(echomagic); }
+#else
 #define SERIAL_ECHO_START serialprintPGM(echomagic);
+#endif
 #define SERIAL_ECHO(x) SERIAL_PROTOCOL(x)
 #define SERIAL_ECHOPGM(x) SERIAL_PROTOCOLPGM(x)
 #define SERIAL_ECHOLN(x) SERIAL_PROTOCOLLN(x)
@@ -90,6 +127,20 @@ FORCE_INLINE void serialprintPGM(const char *str)
   }
 }
 
+#ifdef USART2MPLEX
+// things to write to bluetooth from Programmemory. saves 400 to 2k of RAM???
+// actually reproduces serialprintPGM that's all
+#define SerialprintPGM2(x) serialprintPGM2(MYPGM(x))
+FORCE_INLINE void serialprintPGM2(const char *str)
+{
+  char ch=pgm_read_byte(str);
+  while(ch)
+  {
+    U2Serial.write(ch);
+    ch=pgm_read_byte(++str);
+  }
+}
+#endif
 
 void get_command();
 void process_commands();

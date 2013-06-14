@@ -30,7 +30,6 @@
 
 
 #include "Marlin.h"
-#include "ultralcd.h"
 #include "temperature.h"
 #include "watchdog.h"
 
@@ -143,9 +142,17 @@ static float analog2temp(int raw, uint8_t e);
 static float analog2tempBed(int raw);
 static void updateTemperaturesFromRawValues();
 
+# define WATCH_ORD1_ARRAY(v1) { v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1 }
+# define WATCH_ORD2_ARRAY(v1) { v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1, v1 }
+# define WATCH_ORD3_ARRAY(v1) { v1, v1, v1, v1, v1, v1, v1 }
+
 #ifdef WATCH_TEMP_PERIOD
-int watch_start_temp[EXTRUDERS] = ARRAY_BY_EXTRUDERS(0,0,0);
 unsigned long watchmillis[EXTRUDERS] = ARRAY_BY_EXTRUDERS(0,0,0);
+int watch_order_1[28][EXTRUDERS] = WATCH_ORD1_ARRAY(ARRAY_BY_EXTRUDERS(0, 0, 0));
+int watch_order_2[14][EXTRUDERS] = WATCH_ORD2_ARRAY(ARRAY_BY_EXTRUDERS(0, 0, 0));
+int watch_order_3[7][EXTRUDERS] = WATCH_ORD3_ARRAY(ARRAY_BY_EXTRUDERS(0, 0, 0));
+short watch_order_buff_cnt[3][EXTRUDERS] = { ARRAY_BY_EXTRUDERS(0, 0, 0), ARRAY_BY_EXTRUDERS(0, 0, 0), ARRAY_BY_EXTRUDERS(0, 0, 0) };
+short watch_order_buff_head[3][EXTRUDERS] = { ARRAY_BY_EXTRUDERS(0, 0, 0), ARRAY_BY_EXTRUDERS(0, 0, 0), ARRAY_BY_EXTRUDERS(0, 0, 0) };
 #endif //WATCH_TEMP_PERIOD
 
 #ifndef SOFT_PWM_SCALE
@@ -303,7 +310,6 @@ void PID_autotune(float temp, int extruder, int ncycles)
       SERIAL_PROTOCOLLNPGM("PID Autotune finished! Put the Kp, Ki and Kd constants into Configuration.h");
       return;
     }
-    lcd_update();
   }
 }
 
@@ -474,17 +480,111 @@ void manage_heater()
     }
 
     #ifdef WATCH_TEMP_PERIOD
-    if(watchmillis[e] && millis() - watchmillis[e] > WATCH_TEMP_PERIOD)
+    if (degHotend(e) >= degTargetHotend(e)) {
+      // clear watch arrays
+      if (watch_order_buff_cnt[0][e] > 0) {
+        watch_order_buff_cnt[0][e] = 0;
+        watch_order_buff_head[0][e] = 0;
+      }
+      if (watch_order_buff_cnt[1][e] > 0) {
+        watch_order_buff_cnt[1][e] = 0;
+        watch_order_buff_head[1][e] = 0;
+      }
+      if (watch_order_buff_cnt[2][e] > 0) {
+        watch_order_buff_cnt[2][e] = 0;
+        watch_order_buff_head[2][e] = 0;
+      }
+    }
+    if(degHotend(e) < degTargetHotend(e) && millis() - watchmillis[e] > WATCH_TEMP_PERIOD)
     {
+        watchmillis[e] = millis();
+        int dh = current_temperature_raw[e];
+        // store sample in first order array
+        int end_o1 = (watch_order_buff_head[0][e] + watch_order_buff_cnt[0][e]) % 28;
+        watch_order_1[e][end_o1] = dh;
+        if (watch_order_buff_cnt[0][e] == 28) {
+          watch_order_buff_head[0][e] = (watch_order_buff_head[0][e] + 1) % 28; /* full, overwrite */
+        } else {
+          ++watch_order_buff_cnt[0][e];
+        }
+#ifdef WATCH_TEMP_PERIOD_DEBUG
+SERIAL_ECHO("1st order array: ");
+for (int i = 0; i < 28; i++) {
+  SERIAL_ECHO(watch_order_1[e][i]);
+  SERIAL_ECHO(", ");
+}
+SERIAL_ECHOLN("*");
+#endif
+        if (watch_order_buff_cnt[0][e] > 0 && 0 == watch_order_buff_cnt[0][e] % 2) {
+          // diff latest sample with previous sample, store in 2nd order
+          int a1;
+          if (end_o1 - 1 < 0) {
+            a1 = dh - watch_order_1[e][27]; 
+          } else {
+            a1 = dh - watch_order_1[e][end_o1 - 1]; 
+          }
+          int end_o2 = (watch_order_buff_head[1][e] + watch_order_buff_cnt[1][e]) % 14;
+          watch_order_2[e][end_o2] = a1;
+          if (watch_order_buff_cnt[1][e] == 14) {
+            watch_order_buff_head[1][e] = (watch_order_buff_head[1][e] + 1) % 14; /* full, overwrite */
+          } else {
+            ++watch_order_buff_cnt[1][e];
+          }
+#ifdef WATCH_TEMP_PERIOD_DEBUG
+SERIAL_ECHO("2nd order array: ");
+for (int i = 0; i < 14; i++) {
+  SERIAL_ECHO(watch_order_2[e][i]);
+  SERIAL_ECHO(", ");
+}
+SERIAL_ECHOLN("**");
+#endif
+          if (watch_order_buff_cnt[1][e] > 0 && 0 == watch_order_buff_cnt[1][e] % 2) {
+            // diff latest 2nd order with previous calc, store in 3rd order
+            int a2;
+            if (end_o2 - 1 < 0) {
+              a2 = abs(watch_order_2[e][end_o2]) - watch_order_2[e][13]; 
+            } else {
+              a2 = abs(watch_order_2[e][end_o2]) - watch_order_2[e][end_o2 - 1]; 
+            }
+            int end_o3 = (watch_order_buff_head[2][e] + watch_order_buff_cnt[2][e]) % 7;
+            watch_order_3[e][end_o3] = a2;
+            if (watch_order_buff_cnt[2][e] == 7) {
+              watch_order_buff_head[2][e] = (watch_order_buff_head[2][e] + 1) % 7; /* full, overwrite */
+              // avg samples
+              long sum = 0;
+              for (int i = 0; i < 7; i++) {
+                sum += watch_order_3[e][i];
+              }
+              if (sum / 7 <= 0) {
+                disable_heater();
+                SERIAL_ECHOLN("!THERMISTOR DETACHED EVENT!");
+              }
+            } else {
+              ++watch_order_buff_cnt[2][e];
+            }
+          }
+#ifdef WATCH_TEMP_PERIOD_DEBUG
+if (watch_order_buff_cnt[2][e] == 7) {
+  SERIAL_ECHO("3rd order array: ");
+  for (int i = 0; i < 7; i++) {
+    SERIAL_ECHO(watch_order_3[e][i]);
+    SERIAL_ECHO(", ");
+  }
+  SERIAL_ECHOLN("***");
+}
+#endif
+        }
+        // check 3rd order array once it's full
+/*
         if(degHotend(e) < watch_start_temp[e] + WATCH_TEMP_INCREASE)
         {
             setTargetHotend(0, e);
-            LCD_MESSAGEPGM("Heating failed");
             SERIAL_ECHO_START;
             SERIAL_ECHOLN("Heating failed");
         }else{
             watchmillis[e] = 0;
         }
+*/
     }
     #endif
     #ifdef TEMP_SENSOR_1_AS_REDUNDANT
@@ -493,7 +593,6 @@ void manage_heater()
         if(IsStopped() == false) {
           SERIAL_ERROR_START;
           SERIAL_ERRORLNPGM("Extruder switched off. Temperature difference between temp sensors is too high !");
-          LCD_ALERTMESSAGEPGM("Err: REDUNDANT TEMP ERROR");
         }
         #ifndef BOGUS_TEMPERATURE_FAILSAFE_OVERRIDE
           Stop();
@@ -875,6 +974,7 @@ void tp_init()
 #endif //BED_MAXTEMP
 }
 
+/*
 void setWatch() 
 {  
 #ifdef WATCH_TEMP_PERIOD
@@ -888,7 +988,7 @@ void setWatch()
   }
 #endif 
 }
-
+*/
 
 void disable_heater()
 {
@@ -934,7 +1034,6 @@ void max_temp_error(uint8_t e) {
     SERIAL_ERROR_START;
     SERIAL_ERRORLN((int)e);
     SERIAL_ERRORLNPGM(": Extruder switched off. MAXTEMP triggered !");
-    LCD_ALERTMESSAGEPGM("Err: MAXTEMP");
   }
   #ifndef BOGUS_TEMPERATURE_FAILSAFE_OVERRIDE
   Stop();
@@ -947,7 +1046,6 @@ void min_temp_error(uint8_t e) {
     SERIAL_ERROR_START;
     SERIAL_ERRORLN((int)e);
     SERIAL_ERRORLNPGM(": Extruder switched off. MINTEMP triggered !");
-    LCD_ALERTMESSAGEPGM("Err: MINTEMP");
   }
   #ifndef BOGUS_TEMPERATURE_FAILSAFE_OVERRIDE
   Stop();
@@ -961,7 +1059,6 @@ void bed_max_temp_error(void) {
   if(IsStopped() == false) {
     SERIAL_ERROR_START;
     SERIAL_ERRORLNPGM("Temperature heated bed switched off. MAXTEMP triggered !!");
-    LCD_ALERTMESSAGEPGM("Err: MAXTEMP BED");
   }
   #ifndef BOGUS_TEMPERATURE_FAILSAFE_OVERRIDE
   Stop();
@@ -1095,7 +1192,6 @@ ISR(TIMER0_COMPB_vect)
         ADMUX = ((1 << REFS0) | (TEMP_0_PIN & 0x07));
         ADCSRA |= 1<<ADSC; // Start conversion
       #endif
-      lcd_buttons_update();
       temp_state = 1;
       break;
     case 1: // Measure TEMP_0
@@ -1117,7 +1213,6 @@ ISR(TIMER0_COMPB_vect)
         ADMUX = ((1 << REFS0) | (TEMP_BED_PIN & 0x07));
         ADCSRA |= 1<<ADSC; // Start conversion
       #endif
-      lcd_buttons_update();
       temp_state = 3;
       break;
     case 3: // Measure TEMP_BED
@@ -1136,7 +1231,6 @@ ISR(TIMER0_COMPB_vect)
         ADMUX = ((1 << REFS0) | (TEMP_1_PIN & 0x07));
         ADCSRA |= 1<<ADSC; // Start conversion
       #endif
-      lcd_buttons_update();
       temp_state = 5;
       break;
     case 5: // Measure TEMP_1
@@ -1155,7 +1249,6 @@ ISR(TIMER0_COMPB_vect)
         ADMUX = ((1 << REFS0) | (TEMP_2_PIN & 0x07));
         ADCSRA |= 1<<ADSC; // Start conversion
       #endif
-      lcd_buttons_update();
       temp_state = 7;
       break;
     case 7: // Measure TEMP_2
