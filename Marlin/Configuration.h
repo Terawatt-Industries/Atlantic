@@ -183,6 +183,11 @@
 
 // If you are using a preconfigured hotend then you can use one of the value sets by uncommenting it
 
+// TW w/std MK-VB J-head
+    #define  DEFAULT_Kp 24.7
+    #define  DEFAULT_Ki 1.22
+    #define  DEFAULT_Kd 124
+
 // Ultimaker
 //    #define  DEFAULT_Kp 22.2
 //    #define  DEFAULT_Ki 1.08
