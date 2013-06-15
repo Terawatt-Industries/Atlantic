@@ -9,7 +9,7 @@
 // startup. Implementation of an idea by Prof Braino to inform user that any changes made to this
 // build by the user have been successfully uploaded into firmware.
 #define STRING_VERSION_CONFIG_H __DATE__ " " __TIME__ // build date and time
-#define STRING_CONFIG_H_AUTHOR "Terawatt Industries (PrismX defaults)" // Who made the changes.
+#define STRING_CONFIG_H_AUTHOR "Terawatt Industries (MendelMax 1.5 for LM8UU)" // Who made the changes.
 
 // SERIAL_PORT selects which serial port should be used for communication with the host.
 // This allows the connection of wireless adapters (for instance) to non-default port pins.
@@ -132,7 +132,7 @@
 // 55 is 100k thermistor - ATC Semitec 104GT-2 (Used in ParCan) (1k pullup)
 
 #define TEMP_SENSOR_0 1
-#define TEMP_SENSOR_1 -1
+#define TEMP_SENSOR_1 0
 #define TEMP_SENSOR_2 0
 #define TEMP_SENSOR_BED 1
 
@@ -143,7 +143,7 @@
 
 // Actual temperature must be close to target for this long before M109 returns success
 #define TEMP_RESIDENCY_TIME 5  // (seconds)
-#define TEMP_HYSTERESIS 4       // (degC) range of +/- temperatures considered "close" to the target one
+#define TEMP_HYSTERESIS 3       // (degC) range of +/- temperatures considered "close" to the target one
 #define TEMP_WINDOW     1       // (degC) Window around target to start the residency timer x degC early.
 
 // The minimal temperature defines the temperature below which the heater will not be enabled It is used
@@ -169,7 +169,7 @@
 
 // PID settings:
 // Comment the following line to disable PID and enable bang-bang.
-#define PIDTEMP
+// #define PIDTEMP
 #define BANG_MAX 255 // limits current to nozzle while in bang-bang mode; 255=full current
 #define PID_MAX 255 // limits current to nozzle while PID is active (see PID_FUNCTIONAL_RANGE below); 255=full current
 #ifdef PIDTEMP
@@ -182,11 +182,10 @@
   #define PID_dT ((16.0 * 8.0)/(F_CPU / 64.0 / 256.0)) //sampling period of the temperature routine
 
 // If you are using a preconfigured hotend then you can use one of the value sets by uncommenting it
-
 // Ultimaker
-//    #define  DEFAULT_Kp 22.2
-//    #define  DEFAULT_Ki 1.08
-//    #define  DEFAULT_Kd 114
+    #define  DEFAULT_Kp 22.2
+    #define  DEFAULT_Ki 1.08
+    #define  DEFAULT_Kd 114
 
 // Makergear
 //    #define  DEFAULT_Kp 7.0
@@ -300,10 +299,10 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 #define DISABLE_Z false
 #define DISABLE_E false // For all extruders
 
-#define INVERT_X_DIR true    // for Mendel set to false, for Orca set to true
-#define INVERT_Y_DIR false    // for Mendel set to true, for Orca set to false
-#define INVERT_Z_DIR true     // for Mendel set to false, for Orca set to true
-#define INVERT_E0_DIR true   // for 00str00der extruder set to true, for geared extruder set to false
+#define INVERT_X_DIR false    // for Mendel set to false, for Orca set to true
+#define INVERT_Y_DIR true    // for Mendel set to true, for Orca set to false
+#define INVERT_Z_DIR false     // for Mendel set to false, for Orca set to true
+#define INVERT_E0_DIR false   // for 00str00der extruder set to true, for geared extruder set to false
 #define INVERT_E1_DIR false    // for 00str00der extruder set to true, for geared extruder set to false
 #define INVERT_E2_DIR false   // for 00str00der extruder set to true, for geared extruder set to false
 
@@ -344,12 +343,12 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 
 // default settings
 
-#define DEFAULT_AXIS_STEPS_PER_UNIT   {45.355, 33.84, 2150.2, 533.3334}   // default steps per unit for PrismX + 00str00der
-#define DEFAULT_MAX_FEEDRATE          {2500, 2500, 12, 2500}    // (mm/sec)    
-#define DEFAULT_MAX_ACCELERATION      {2220, 2220, 70, 2220}    // X, Y, Z, E maximum start speed for accelerated moves. E default values are good for skeinforge 40+, for older versions raise them a lot.
+#define DEFAULT_AXIS_STEPS_PER_UNIT   {45.4428, 45.6760, 2108.8170, 575.369}   // j-head
+#define DEFAULT_MAX_FEEDRATE          {1000, 1000, 3.0, 50}    // (mm/sec)    
+#define DEFAULT_MAX_ACCELERATION      {2000, 2000, 500, 1200}    // X, Y, Z, E maximum start speed for accelerated moves. E default values are good for skeinforge 40+, for older versions raise them a lot.
 
-#define DEFAULT_ACCELERATION          2220    // X, Y, Z and E max acceleration in mm/s^2 for printing moves 
-#define DEFAULT_RETRACT_ACCELERATION  2220   // X, Y, Z and E max acceleration in mm/s^2 for r retracts
+#define DEFAULT_ACCELERATION          1500    // X, Y, Z and E max acceleration in mm/s^2 for printing moves 
+#define DEFAULT_RETRACT_ACCELERATION  1500   // X, Y, Z and E max acceleration in mm/s^2 for r retracts
 
 // Offset of the extruders (uncomment if using more than one and relying on firmware to position when changing).
 // The offset has to be X=0, Y=0 for the extruder 0 hotend (default extruder).
@@ -358,8 +357,8 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 // #define EXTRUDER_OFFSET_Y {0.0, 5.00}  // (in mm) for each extruder, offset of the hotend on the Y axis
 
 // The speed change that does not require acceleration (i.e. the software might assume it can be done instantaneously)
-#define DEFAULT_XYJERK                10.0    // (mm/sec)
-#define DEFAULT_ZJERK                 1.0     // (mm/sec)
+#define DEFAULT_XYJERK                5.0    // (mm/sec)
+#define DEFAULT_ZJERK                 0.1     // (mm/sec)
 #define DEFAULT_EJERK                 5.0    // (mm/sec)
 
 //===========================================================================
