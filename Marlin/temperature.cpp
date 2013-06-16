@@ -539,9 +539,9 @@ SERIAL_ECHOLN("*");
           end_o2 = (watch_order_buff_head[1][e] + watch_order_buff_cnt[1][e]) % 32;
           watch_order_2[e][end_o2] = a1;
           // running avg
-          sum_order2 += a1;
+          sum_ord2 += a1;
           if (watch_order_buff_cnt[1][e] == 32) {
-            sum_order2 -= watch_order_buff_head[1][e];
+            sum_ord2 -= watch_order_buff_head[1][e];
             watch_order_buff_head[1][e] = (watch_order_buff_head[1][e] + 1) % 32; /* full, overwrite */
           } else {
             ++watch_order_buff_cnt[1][e];
@@ -565,7 +565,7 @@ SERIAL_ECHOLN("**");
             end_o3 = (watch_order_buff_head[2][e] + watch_order_buff_cnt[2][e]) % 16;
             watch_order_3[e][end_o3] = a2;
             // running avg
-            sum_ord3 += watch_order_3[e][i];
+            sum_ord3 += a2;
 #ifdef WATCH_TEMP_PERIOD_DEBUG
   SERIAL_ECHO("3rd order array: ");
   for (int i = 0; i < 16; i++) {
@@ -576,9 +576,8 @@ SERIAL_ECHOLN("**");
 #endif
             if (watch_order_buff_cnt[2][e] == 16) {
               // full overwrite, subtract from sum
-              sum_order2 -= watch_order_buff_head[2][e];
+              sum_ord3 -= watch_order_buff_head[2][e];
               watch_order_buff_head[2][e] = (watch_order_buff_head[2][e] + 1) % 16; /* full, overwrite */
-              long sum_ord3 = 0, sum_ord2 = 0;
               if (((float) sum_ord3 / watch_order_buff_cnt[2][e]) >= 0) {  // divide by count for avg
                 // avg order 2
                 if (((float) sum_ord2 / watch_order_buff_cnt[1][e]) > 0) {  // divide by count for avg
