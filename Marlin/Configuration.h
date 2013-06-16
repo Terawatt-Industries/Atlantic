@@ -365,7 +365,7 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 // The speed change that does not require acceleration (i.e. the software might assume it can be done instantaneously)
 #define DEFAULT_XYJERK                10.0    // (mm/sec)
 #define DEFAULT_ZJERK                 1.0     // (mm/sec)
-#define DEFAULT_EJERK                 5.0    // (mm/sec)
+#define DEFAULT_EJERK                 50.0    // (mm/sec)
 
 //===========================================================================
 //=============================Additional Features===========================
@@ -392,7 +392,7 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 #define ABS_PREHEAT_FAN_SPEED 255   // Insert Value between 0 and 255
 
 //LCD and SD support
-//#define SDSUPPORT // Enable SD Card Support in Hardware Console
+#define SDSUPPORT // Enable SD Card Support in Hardware Console
 //#define SDSLOW // Use slower SD transfer mode (not normally needed - uncomment if you're getting volume init error)
 #define USART2MPLEX // multiplex serial communication on USART2
 

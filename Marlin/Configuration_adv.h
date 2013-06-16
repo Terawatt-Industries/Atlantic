@@ -14,7 +14,7 @@
 // This waits for the watchperiod in milliseconds whenever an M104 or M109 increases the target temperature
 // it checks first and second order differences of stored temp readings while the extruder is on
 // then averages second order differences.  if 2nd-order-avg < 0 the therm is disconnected
-#define WATCH_TEMP_PERIOD 170  // milliseconds
+#define WATCH_TEMP_PERIOD 75  // milliseconds
 //#define WATCH_TEMP_PERIOD_DEBUG
 
 // Wait for Cooldown
