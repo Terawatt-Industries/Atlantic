@@ -529,15 +529,19 @@ SERIAL_ECHOLN("*");
 #endif
         if (watch_order_buff_cnt[0][e] > 1) {
           // diff latest sample with previous sample, store in 2nd order
+          long sum_ord3 = 0, sum_ord2 = 0;
           int a1;
           if (end_o1 == 0) {
-            a1 = watch_order_1[e][0] - watch_order_1[e][63]; 
+            a1 = watch_order_1[e][0] - watch_order_1[e][31]; 
           } else {
             a1 = watch_order_1[e][end_o1] - watch_order_1[e][end_o1 - 1]; 
           }
           end_o2 = (watch_order_buff_head[1][e] + watch_order_buff_cnt[1][e]) % 32;
           watch_order_2[e][end_o2] = a1;
+          // running avg
+          sum_order2 += a1;
           if (watch_order_buff_cnt[1][e] == 32) {
+            sum_order2 -= watch_order_buff_head[1][e];
             watch_order_buff_head[1][e] = (watch_order_buff_head[1][e] + 1) % 32; /* full, overwrite */
           } else {
             ++watch_order_buff_cnt[1][e];
@@ -560,7 +564,8 @@ SERIAL_ECHOLN("**");
             }
             end_o3 = (watch_order_buff_head[2][e] + watch_order_buff_cnt[2][e]) % 16;
             watch_order_3[e][end_o3] = a2;
-            if (watch_order_buff_cnt[2][e] == 16) {
+            // running avg
+            sum_ord3 += watch_order_3[e][i];
 #ifdef WATCH_TEMP_PERIOD_DEBUG
   SERIAL_ECHO("3rd order array: ");
   for (int i = 0; i < 16; i++) {
@@ -569,34 +574,24 @@ SERIAL_ECHOLN("**");
   }
   SERIAL_ECHOLN("***");
 #endif
+            if (watch_order_buff_cnt[2][e] == 16) {
+              // full overwrite, subtract from sum
+              sum_order2 -= watch_order_buff_head[2][e];
               watch_order_buff_head[2][e] = (watch_order_buff_head[2][e] + 1) % 16; /* full, overwrite */
-              // avg samples
-              long sum = 0;
-              for (int i = 0; i < 16; i++) {
-                sum += watch_order_3[e][i];
+              long sum_ord3 = 0, sum_ord2 = 0;
+              if (((float) sum_ord3 / watch_order_buff_cnt[2][e]) >= 0) {  // divide by count for avg
+                // avg order 2
+                if (((float) sum_ord2 / watch_order_buff_cnt[1][e]) > 0) {  // divide by count for avg
+                  disable_heater();
+                  SERIAL_ECHOLN("!THERMISTOR DETACHED EVENT!");
+                }
               }
-              if (sum >> 4 >= 0) {  // divide by 16 for avg
-                disable_heater();
-                SERIAL_ECHOLN("!THERMISTOR DETACHED EVENT!");
-              }
-//              watch_order_buff_cnt[2][e] = 0;
-//              watch_order_buff_head[2][e] = 0;
             } else {
               ++watch_order_buff_cnt[2][e];
             }
           }
         }
       }
-/*
-        if(degHotend(e) < watch_start_temp[e] + WATCH_TEMP_INCREASE)
-        {
-            setTargetHotend(0, e);
-            SERIAL_ECHO_START;
-            SERIAL_ECHOLN("Heating failed");
-        }else{
-            watchmillis[e] = 0;
-        }
-*/
     }
     #endif
     #ifdef TEMP_SENSOR_1_AS_REDUNDANT
