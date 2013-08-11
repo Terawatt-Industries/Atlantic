@@ -6,7 +6,7 @@ Atlantic 3D Printer Firmware
 
 Quick Information
 ===================
-This is the official firmware for Terawatt Industries 3D Printers.  It is based on Marlin v1.0.0.  By default it's configured for the PrismX 3D Printer, but it can be used with our MendelMax 1.5 for LM8UU or any other RAMPS1.4-based 3D printer.
+This is the official firmware for Terawatt Industries 3D Printers.  It is based on Marlin v1.0.0.  By default it's configured for the PrismX 3D Printer, but it can be used with our MendelMax 1.5 for LM8UU or any other 3D printer that the Marlin firmware supports.
 
 This firmware is based on Marlin, which is in turn based on grbl and many original parts.  This fork is a "sanitized" version of Marlin which focuses on the equipment used on Terawatt Industries printers.  We also deleted all LCD hacks from the code.
 
